@@ -8,8 +8,8 @@ import tensorflow as tf
 
 from base.base_model import BaseModel
 from keras import backend as K
-from keras.layers import Activation, BatchNormalization, Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, \
-    LeakyReLU, MaxPool2D, ReLU, Reshape
+from keras.activations import sigmoid, tanh
+from keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, LeakyReLU, ReLU, Reshape
 from keras.objectives import binary_crossentropy, mean_absolute_error
 
 from layers.guided_filter import guided_filter
@@ -49,19 +49,16 @@ class Unet(BaseModel):
                 # Second Layer
                 self.disc_layers['h1_conv'] = Conv2D(filters=self.gen_filters * 2, kernel_size=(5, 5), strides=(2, 2),
                                                      padding='same')
-                self.disc_layers['h1_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
                 self.disc_layers['h1_actv'] = LeakyReLU(alpha=0.2)
 
                 # Third Layer
                 self.disc_layers['h2_conv'] = Conv2D(filters=self.gen_filters * 4, kernel_size=(5, 5), strides=(2, 2),
                                                      padding='same')
-                self.disc_layers['h2_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
                 self.disc_layers['h2_actv'] = LeakyReLU(alpha=0.2)
 
                 # Fourth Layer
                 self.disc_layers['h3_conv'] = Conv2D(filters=self.gen_filters * 8, kernel_size=(5, 5), strides=(1, 1),
                                                      padding='same')
-                self.disc_layers['h3_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
                 self.disc_layers['h3_actv'] = LeakyReLU(alpha=0.2)
 
                 # Fifth Layer
@@ -74,117 +71,117 @@ class Unet(BaseModel):
 
             # Second Convolution
             h1 = self.disc_layers['h1_conv'](h0)
-            h1 = self.disc_layers['h1_norm'](h1)
+            h1 = tf.contrib.layers.batch_norm(h1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
             h1 = self.disc_layers['h1_actv'](h1)
 
             # Third Convolution
             h2 = self.disc_layers['h2_conv'](h1)
-            h2 = self.disc_layers['h2_norm'](h2)
+            h2 = tf.contrib.layers.batch_norm(h2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
             h2 = self.disc_layers['h2_actv'](h2)
 
             # Fourth Convolution
             h3 = self.disc_layers['h3_conv'](h2)
-            h3 = self.disc_layers['h3_norm'](h3)
+            h3 = tf.contrib.layers.batch_norm(h3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
             h3 = self.disc_layers['h3_actv'](h3)
 
             # Dense Layer
             h4 = self.disc_layers['h4_resh'](h3)
             h4 = self.disc_layers['h4_line'](h4)
 
-            return h4, Activation("sigmoid")(h4)
+            return h4, sigmoid(h4)
 
     def build_generator(self, x):
         with tf.variable_scope("generator", reuse=tf.AUTO_REUSE):
-            with K.name_scope("Encode1"):
+            with K.name_scope("encode1"):
                 e1 = Conv2D(filters=self.gen_filters, kernel_size=5, strides=2, padding='same')(x)
                 e1 = LeakyReLU(alpha=0.2)(e1)
 
-            with K.name_scope("Encode2"):
+            with K.name_scope("encode2"):
                 e2 = Conv2D(filters=self.gen_filters * 2, kernel_size=5, strides=2, padding='same')(e1)
-                e2 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e2)
+                e2 = tf.contrib.layers.batch_norm(e2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e2 = LeakyReLU(alpha=0.2)(e2)
 
-            with K.name_scope("Encode3"):
+            with K.name_scope("encode3"):
                 e3 = Conv2D(filters=self.gen_filters * 4, kernel_size=5, strides=2, padding='same')(e2)
-                e3 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e3)
+                e3 = tf.contrib.layers.batch_norm(e3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e3 = LeakyReLU(alpha=0.2)(e3)
 
-            with K.name_scope("Encode4"):
+            with K.name_scope("encode4"):
                 e4 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e3)
-                e4 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e4)
+                e4 = tf.contrib.layers.batch_norm(e4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e4 = LeakyReLU(alpha=0.2)(e4)
 
-            with K.name_scope("Encode5"):
+            with K.name_scope("encode5"):
                 e5 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e4)
-                e5 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e5)
+                e5 = tf.contrib.layers.batch_norm(e5, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e5 = LeakyReLU(alpha=0.2)(e5)
 
-            with K.name_scope("Encode6"):
+            with K.name_scope("encode6"):
                 e6 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e5)
-                e6 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e6)
+                e6 = tf.contrib.layers.batch_norm(e6, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e6 = LeakyReLU(alpha=0.2)(e6)
 
-            with K.name_scope("Encode7"):
+            with K.name_scope("encode7"):
                 e7 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e6)
-                e7 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e7)
+                e7 = tf.contrib.layers.batch_norm(e7, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e7 = LeakyReLU(alpha=0.2)(e7)
 
-            with K.name_scope("Encode8"):
+            with K.name_scope("encode8"):
                 e8 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e7)
-                e8 = BatchNormalization(momentum=0.9, epsilon=1e-5)(e8)
+                e8 = tf.contrib.layers.batch_norm(e8, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 e8 = ReLU()(e8)
 
-            with K.name_scope("Decode1"):
+            with K.name_scope("decode1"):
                 d1 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e8)
-                d1 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d1)
+                d1 = tf.contrib.layers.batch_norm(d1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d1 = Dropout(rate=0.5)(d1)
                 d1 = Concatenate()([d1, e7])
                 d1 = ReLU()(d1)
 
-            with K.name_scope("Decode2"):
+            with K.name_scope("decode2"):
                 d2 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d1)
-                d2 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d2)
+                d2 = tf.contrib.layers.batch_norm(d2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d2 = Dropout(rate=0.5)(d2)
                 d2 = Concatenate()([d2, e6])
                 d2 = ReLU()(d2)
 
-            with K.name_scope("Decode3"):
+            with K.name_scope("decode3"):
                 d3 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d2)
-                d3 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d3)
+                d3 = tf.contrib.layers.batch_norm(d3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d3 = Dropout(rate=0.5)(d3)
                 d3 = Concatenate()([d3, e5])
                 d3 = ReLU()(d3)
 
-            with K.name_scope("Decode4"):
+            with K.name_scope("decode4"):
                 d4 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d3)
-                d4 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d4)
+                d4 = tf.contrib.layers.batch_norm(d4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d4 = Concatenate()([d4, e4])
                 d4 = ReLU()(d4)
 
-            with K.name_scope("Decode5"):
+            with K.name_scope("decode5"):
                 d5 = Conv2DTranspose(filters=self.gen_filters * 4, kernel_size=5, strides=2, padding='same')(d4)
-                d5 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d5)
+                d5 = tf.contrib.layers.batch_norm(d5, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d5 = Concatenate()([d5, e3])
                 d5 = ReLU()(d5)
 
-            with K.name_scope("Decode6"):
+            with K.name_scope("decode6"):
                 d6 = Conv2DTranspose(filters=self.gen_filters * 2, kernel_size=5, strides=2, padding='same')(d5)
-                d6 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d6)
+                d6 = tf.contrib.layers.batch_norm(d6, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d6 = Concatenate()([d6, e2])
                 d6 = ReLU()(d6)
 
-            with K.name_scope("Decode7"):
+            with K.name_scope("decode7"):
                 d7 = Conv2DTranspose(filters=self.gen_filters, kernel_size=5, strides=2, padding='same')(d6)
-                d7 = BatchNormalization(momentum=0.9, epsilon=1e-5)(d7)
+                d7 = tf.contrib.layers.batch_norm(d7, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d7 = Concatenate()([d7, e1])
                 d7 = ReLU()(d7)
 
-            with K.name_scope("Decode8"):
+            with K.name_scope("decode8"):
                 d8 = Conv2DTranspose(filters=self.output_shape.as_list()[-1], kernel_size=5, strides=2, padding='same')(d7)
                 #d8 = ReLU()(d8)
 
             """
-            with K.name_scope("Guided"):
+            with K.name_scope("guided1"):
                 son = tf.image.grayscale_to_rgb(x)
 
                 g1 = guided_filter(x=d8, y=son, r=20, eps=1e-4)
@@ -194,11 +191,11 @@ class Unet(BaseModel):
             # Final Convolution
             #fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
 
-            return ReLU()(d8)
+            return tanh(d8)
 
     def build_model(self, batch_size):
-        self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list())
-        self.y = tf.placeholder(tf.float32, shape=[batch_size] + self.output_shape.as_list())
+        self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list(), name="sonar")
+        self.y = tf.placeholder(tf.float32, shape=[batch_size] + self.output_shape.as_list(), name="satellite")
 
         # Network Architecture
         self.fn = self.build_generator(self.x)

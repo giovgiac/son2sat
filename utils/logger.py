@@ -38,7 +38,7 @@ class Logger(object):
                         if len(value.shape) <= 1:
                             self.summary_ops[tag] = tf.summary.scalar(tag, self.summary_placeholders[tag])
                         else:
-                            self.summary_ops[tag] = tf.summary.image(tag, self.summary_placeholders[tag])
+                            self.summary_ops[tag] = tf.summary.image(tag, self.summary_placeholders[tag], max_outputs=6)
 
                     summary_list.append(
                         self.session.run(self.summary_ops[tag], {self.summary_placeholders[tag]: value}))
