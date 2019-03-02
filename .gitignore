@@ -1,0 +1,11 @@
+# Ignore PyCharm Files
+.idea/
+
+# Ignore Dataset Image Files
+datasets/aracati/
+
+# Ignore Executions
+executions/
+
+# Ignore Python Cache
+*.pyc

@@ -22,10 +22,11 @@ class Unet(BaseModel):
         self.y = None
         self.cross_entropy = None
         self.disc_entropy = None
+        self.disc_layers = {}
         self.fn = None
         self.train_step = None
-        self.gen_filters = self.config.gen_filters
 
+        self.gen_filters = self.config.gen_filters
         self.input_shape = tf.TensorShape([self.config.image_height,
                                            self.config.image_width,
                                            self.config.input_channels])
@@ -37,34 +38,62 @@ class Unet(BaseModel):
         self.build_model(1 if self.is_evaluating else self.config.batch_size)
         self.init_saver()
 
-    def build_discriminator(self, x, batch_size):
-        with tf.variable_scope("discriminator", reuse=tf.AUTO_REUSE):
+    def build_discriminator(self, x, reuse=False):
+        with tf.variable_scope("discriminator", reuse=reuse):
+            if not self.disc_layers:
+                # First Layer
+                self.disc_layers['h0_conv'] = Conv2D(filters=self.gen_filters, kernel_size=(5, 5), strides=(2, 2),
+                                                     padding='same')
+                self.disc_layers['h0_actv'] = LeakyReLU(alpha=0.2)
+
+                # Second Layer
+                self.disc_layers['h1_conv'] = Conv2D(filters=self.gen_filters * 2, kernel_size=(5, 5), strides=(2, 2),
+                                                     padding='same')
+                self.disc_layers['h1_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
+                self.disc_layers['h1_actv'] = LeakyReLU(alpha=0.2)
+
+                # Third Layer
+                self.disc_layers['h2_conv'] = Conv2D(filters=self.gen_filters * 4, kernel_size=(5, 5), strides=(2, 2),
+                                                     padding='same')
+                self.disc_layers['h2_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
+                self.disc_layers['h2_actv'] = LeakyReLU(alpha=0.2)
+
+                # Fourth Layer
+                self.disc_layers['h3_conv'] = Conv2D(filters=self.gen_filters * 8, kernel_size=(5, 5), strides=(1, 1),
+                                                     padding='same')
+                self.disc_layers['h3_norm'] = BatchNormalization(momentum=0.9, epsilon=1e-5)
+                self.disc_layers['h3_actv'] = LeakyReLU(alpha=0.2)
+
+                # Fifth Layer
+                self.disc_layers['h4_resh'] = Reshape(target_shape=(-1,))
+                self.disc_layers['h4_line'] = Dense(units=1)
+
             # First Convolution
-            h0 = Conv2D(filters=self.gen_filters, kernel_size=(5, 5), strides=(2, 2), padding='same')(x)
-            h0 = LeakyReLU(alpha=0.2)(h0)
+            h0 = self.disc_layers['h0_conv'](x)
+            h0 = self.disc_layers['h0_actv'](h0)
 
             # Second Convolution
-            h1 = Conv2D(filters=self.gen_filters * 2, kernel_size=(5, 5), strides=(2, 2), padding='same')(h0)
-            h1 = BatchNormalization(momentum=0.9, epsilon=1e-5)(h1)
-            h1 = LeakyReLU(alpha=0.2)(h1)
+            h1 = self.disc_layers['h1_conv'](h0)
+            h1 = self.disc_layers['h1_norm'](h1)
+            h1 = self.disc_layers['h1_actv'](h1)
 
             # Third Convolution
-            h2 = Conv2D(filters=self.gen_filters * 4, kernel_size=(5, 5), strides=(2, 2), padding='same')(h1)
-            h2 = BatchNormalization(momentum=0.9, epsilon=1e-5)(h2)
-            h2 = LeakyReLU(alpha=0.2)(h2)
+            h2 = self.disc_layers['h2_conv'](h1)
+            h2 = self.disc_layers['h2_norm'](h2)
+            h2 = self.disc_layers['h2_actv'](h2)
 
             # Fourth Convolution
-            h3 = Conv2D(filters=self.gen_filters * 8, kernel_size=(5, 5), strides=(1, 1), padding='same')(h2)
-            h3 = BatchNormalization(momentum=0.9, epsilon=1e-5)(h3)
-            h3 = LeakyReLU(alpha=0.2)(h3)
+            h3 = self.disc_layers['h3_conv'](h2)
+            h3 = self.disc_layers['h3_norm'](h3)
+            h3 = self.disc_layers['h3_actv'](h3)
 
             # Dense Layer
-            h4 = Reshape(target_shape=(-1,))(h3)
-            h4 = Dense(units=1)(h4)
+            h4 = self.disc_layers['h4_resh'](h3)
+            h4 = self.disc_layers['h4_line'](h4)
 
             return h4, Activation("sigmoid")(h4)
 
-    def build_generator(self, x, batch_size):
+    def build_generator(self, x):
         with tf.variable_scope("generator", reuse=tf.AUTO_REUSE):
             with K.name_scope("Encode1"):
                 e1 = Conv2D(filters=self.gen_filters, kernel_size=5, strides=2, padding='same')(x)
@@ -152,48 +181,55 @@ class Unet(BaseModel):
 
             with K.name_scope("Decode8"):
                 d8 = Conv2DTranspose(filters=self.output_shape.as_list()[-1], kernel_size=5, strides=2, padding='same')(d7)
-                d8 = ReLU()(d8)
+                #d8 = ReLU()(d8)
 
+            """
             with K.name_scope("Guided"):
                 son = tf.image.grayscale_to_rgb(x)
 
                 g1 = guided_filter(x=d8, y=son, r=20, eps=1e-4)
                 g1 = Concatenate()([g1 * d8, d8])
+            """
 
             # Final Convolution
-            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
+            #fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
 
-            return ReLU()(fn)
+            return ReLU()(d8)
 
     def build_model(self, batch_size):
         self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list())
         self.y = tf.placeholder(tf.float32, shape=[batch_size] + self.output_shape.as_list())
 
         # Network Architecture
-        self.fn = self.build_generator(self.x, batch_size)
-        real_logits, real = self.build_discriminator(Concatenate()([self.x, self.y]), batch_size)
-        fake_logits, fake = self.build_discriminator(Concatenate()([self.x, self.fn]), batch_size)
+        self.fn = self.build_generator(self.x)
+        real_logits, real = self.build_discriminator(Concatenate()([self.x, self.y]), reuse=False)
+        fake_logits, fake = self.build_discriminator(Concatenate()([self.x, self.fn]), reuse=True)
 
         with K.name_scope("loss"):
-            real_loss = tf.reduce_mean(binary_crossentropy(tf.ones_like(real), real_logits))
-            fake_loss = tf.reduce_mean(binary_crossentropy(tf.zeros_like(fake), fake_logits))
+            real_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits, labels=tf.ones_like(real)))
+            fake_loss = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.zeros_like(fake)))
 
-            self.cross_entropy = tf.reduce_mean(binary_crossentropy(tf.ones_like(fake), fake_logits)) + \
-                                 100.0 * tf.reduce_mean(mean_absolute_error(self.y, self.fn))
+            self.cross_entropy = tf.reduce_mean(
+                tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.ones_like(fake)) +
+                100.0 * tf.reduce_mean(tf.abs(self.y - self.fn)))
             self.disc_entropy = real_loss + fake_loss
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
-                discriminator_step = tf.train.AdamOptimizer(self.config.learning_rate).minimize(self.disc_entropy,
-                                                                                                None,
-                                                                                                disc_vars)
+                discriminator_step = tf.train.AdamOptimizer(self.config.learning_rate, beta1=0.5).minimize(
+                    self.disc_entropy,
+                    None,
+                    var_list=disc_vars)
 
             gen_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="generator")
             with tf.control_dependencies([discriminator_step]):
-                generator_step = tf.train.AdamOptimizer(self.config.learning_rate).minimize(self.cross_entropy,
-                                                                                            self.global_step,
-                                                                                            gen_vars)
+                generator_step = tf.train.AdamOptimizer(self.config.learning_rate, beta1=0.5).minimize(
+                    self.cross_entropy,
+                    self.global_step,
+                    var_list=gen_vars)
 
             self.train_step = tf.group(discriminator_step, generator_step)
 

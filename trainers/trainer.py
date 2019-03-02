@@ -37,6 +37,7 @@ class Trainer(BaseTrainer):
 
         for _ in loop:
             err, d_err = self.train_step()
+
             errs.append(err)
             d_errs.append(d_err)
 
@@ -54,9 +55,9 @@ class Trainer(BaseTrainer):
             batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_test=True))
             feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
 
-            err, fake, real, inp = self.session.run([self.model.cross_entropy,
-                                                     self.model.fn, self.model.y, self.model.x], feed_dict=feed_dict)
-            errs_val.append(err)
+            err_val, fake, real, inp = self.session.run([self.model.cross_entropy,
+                                                         self.model.fn, self.model.y, self.model.x], feed_dict=feed_dict)
+            errs_val.append(err_val)
             self.data.idx += 1
 
         self.data.idx = 0
