@@ -20,6 +20,7 @@ class BaseTrainer(object):
     def train(self):
         for epoch in range(self.model.epoch.eval(self.session), self.config.num_epochs + 1, 1):
             self.train_epoch()
+            self.validate_epoch()
             self.session.run(self.model.increment_epoch)
 
     def evaluate_data(self, data, save_fn):
@@ -29,4 +30,10 @@ class BaseTrainer(object):
         raise NotImplementedError
 
     def train_step(self):
+        raise NotImplementedError
+
+    def validate_epoch(self):
+        raise NotImplementedError
+
+    def validate_step(self):
         raise NotImplementedError
