@@ -1,6 +1,9 @@
 # Ignore PyCharm Files
 .idea/
 
+# Ignore Weights
+*.npz
+
 # Ignore Dataset Image Files
 datasets/aracati/
 

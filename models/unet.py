@@ -8,11 +8,12 @@ import tensorflow as tf
 
 from base.base_model import BaseModel
 from keras import backend as K
-from keras.activations import sigmoid, tanh
+from keras.activations import sigmoid, relu
 from keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, LeakyReLU, ReLU, Reshape
 from keras.objectives import binary_crossentropy, mean_absolute_error
 
 from layers.guided_filter import guided_filter
+
 
 class Unet(BaseModel):
     def __init__(self, config, is_evaluating=False):
@@ -178,20 +179,23 @@ class Unet(BaseModel):
 
             with K.name_scope("decode8"):
                 d8 = Conv2DTranspose(filters=self.output_shape.as_list()[-1], kernel_size=5, strides=2, padding='same')(d7)
-                #d8 = ReLU()(d8)
 
-            """
             with K.name_scope("guided1"):
                 son = tf.image.grayscale_to_rgb(x)
 
-                g1 = guided_filter(x=d8, y=son, r=20, eps=1e-4)
+                # Guided Convolution
+                c1 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d8)
+                c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+                c1 = ReLU()(c1)
+
+                # Guided Filter
+                g1 = guided_filter(x=c1, y=son, r=20, eps=1e-4, nhwc=True)
                 g1 = Concatenate()([g1 * d8, d8])
-            """
 
             # Final Convolution
-            #fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
+            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
 
-            return tanh(d8)
+            return relu(fn)
 
     def build_model(self, batch_size):
         self.x = tf.placeholder(tf.float32, shape=[batch_size] + self.input_shape.as_list(), name="sonar")

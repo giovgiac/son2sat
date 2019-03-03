@@ -22,7 +22,7 @@ from matplotlib.pyplot import imread, imsave
 
 import numpy as np
 
-EXECUTION_NAME = "2019-03-02_15:39"
+EXECUTION_NAME = "2019-03-02_20:43"
 
 
 def main():
