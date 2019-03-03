@@ -13,7 +13,7 @@ from keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, L
 from keras.objectives import binary_crossentropy, mean_absolute_error
 
 from layers.guided_filter import guided_filter
-from layers.style_loss import style_loss
+from layers.reconstruction_loss import feature_loss, style_loss
 
 
 class Unet(BaseModel):
@@ -228,22 +228,22 @@ class Unet(BaseModel):
             self.disc_entropy = self.real_entropy + self.fake_entropy
 
             self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.ones_like(fake))
-            self.reconstruction_loss = style_loss(self.config, self.fn, self.y, layers=["relu21"])
+            self.reconstruction_loss = 10e6 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
             self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss)
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
                 discriminator_step = tf.train.AdamOptimizer(self.config.learning_rate, beta1=0.5).minimize(
-                    self.disc_entropy,
-                    None,
+                    loss=self.disc_entropy,
+                    global_step=None,
                     var_list=disc_vars)
 
             gen_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="generator")
             with tf.control_dependencies([discriminator_step]):
                 generator_step = tf.train.AdamOptimizer(self.config.learning_rate, beta1=0.5).minimize(
-                    self.cross_entropy,
-                    self.global_step,
+                    loss=self.cross_entropy,
+                    global_step=self.global_step,
                     var_list=gen_vars)
 
             self.train_step = tf.group(discriminator_step, generator_step)

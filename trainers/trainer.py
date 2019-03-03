@@ -89,14 +89,18 @@ class Trainer(BaseTrainer):
         loop.set_description("Validating Epoch {}".format(self.model.epoch.eval(self.session)))
 
         err_list = []
+        r_loss_list = []
+        d_loss_list = []
         fn_list = []
         y_list = []
         x_list = []
         for _ in loop:
-            err, fn, y, x = self.validate_step()
+            err, r_loss, d_loss, fn, y, x = self.validate_step()
 
             # Append Data
             err_list.append(err)
+            r_loss_list.append(r_loss)
+            d_loss_list.append(d_loss)
             fn_list.append(fn)
             y_list.append(y)
             x_list.append(x)
@@ -104,14 +108,17 @@ class Trainer(BaseTrainer):
             self.data.idx += 1
         self.data.idx = 0
 
+        batch = rand.choice(range(len(fn_list)))
         it = self.model.global_step.eval(self.session)
         data_dict = {
+            "discriminator_loss": np.mean(d_loss_list),
             "loss": np.mean(err_list),
+            "reconstruction_loss": np.mean(r_loss_list),
         }
         image_dict = {
-            "fake": rand.choice(fn_list),
-            "input": rand.choice(x_list),
-            "real": rand.choice(y_list),
+            "fake": fn_list[batch],
+            "input": x_list[batch],
+            "real": y_list[batch],
         }
 
         self.logger.summarize(it, summarizer="validation", scope="generative", summaries_dict=data_dict)
@@ -122,9 +129,11 @@ class Trainer(BaseTrainer):
         batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_test=True))
         feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
 
-        err, fn, y, x = self.session.run([self.model.cross_entropy,
-                                          self.model.fn,
-                                          self.model.y,
-                                          self.model.x],
-                                         feed_dict=feed_dict)
-        return err, fn, y, x
+        err, r_loss, d_loss, fn, y, x = self.session.run([self.model.cross_entropy,
+                                                          self.model.reconstruction_loss,
+                                                          self.model.discriminator_loss,
+                                                          self.model.fn,
+                                                          self.model.y,
+                                                          self.model.x],
+                                                         feed_dict=feed_dict)
+        return err, r_loss, d_loss, fn, y, x

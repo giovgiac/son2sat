@@ -1,4 +1,4 @@
-# style_loss.py
+# reconstruction_loss.py
 
 from __future__ import absolute_import
 from __future__ import division
@@ -14,17 +14,14 @@ from keras.layers import Conv2D, Dense, MaxPool2D, Reshape
 
 def gram_matrix(x, nhwc=True):
     assert x.shape.ndims == 4
-    x_shape = K.shape(x)
 
+    shape = tf.shape(x)
     if nhwc:
-        features = K.batch_flatten(K.permute_dimensions(x, (0, 3, 1, 2)))
-        channels, width, height = (x_shape[3], x_shape[1], x_shape[2])
+        flat = tf.reshape(x, shape=(-1, shape[1] * shape[2], shape[3]))
     else:
-        features = K.batch_flatten(x)
-        channels, width, height = (x_shape[1], x_shape[2], x_shape[3])
+        flat = tf.reshape(x, shape=(-1, shape[2] * shape[3], shape[1]))
 
-    flat = K.reshape(features, shape=(-1, channels, width * height))
-    return tf.matmul(flat, K.permute_dimensions(flat, (0, 2, 1))) / K.cast(channels * width * height, dtype="float32")
+    return tf.matmul(flat, flat, transpose_a=True) / tf.cast(shape[1] * shape[2] * shape[3], dtype=tf.float32)
 
 
 def load_weights(config, parameters):
@@ -64,7 +61,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu11" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv11) - gram_matrix(conv11_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv11 / 255.0) - gram_matrix(conv11_gt / 255.0)))
 
     # Second Convolution
     w_conv12 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], dtype=tf.float32, stddev=1e-1),
@@ -85,7 +82,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu12" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv12) - gram_matrix(conv12_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv12 / 255.0) - gram_matrix(conv12_gt / 255.0)))
 
     # First Maxpool
     pool1 = tf.nn.max_pool(conv12, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -112,7 +109,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu21" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv21) - gram_matrix(conv21_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv21 / 255.0) - gram_matrix(conv21_gt / 255.0)))
 
     # Fourth Convolution
     w_conv22 = tf.Variable(tf.truncated_normal([3, 3, 128, 128], dtype=tf.float32, stddev=1e-1),
@@ -133,7 +130,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu22" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv22) - gram_matrix(conv22_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv22 / 255.0) - gram_matrix(conv22_gt / 255.0)))
 
     # Second Maxpool
     pool2 = tf.nn.max_pool(conv22, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -160,7 +157,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu31" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv31) - gram_matrix(conv31_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv31 / 255.0) - gram_matrix(conv31_gt / 255.0)))
 
     # Sixth Convolution
     w_conv32 = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32, stddev=1e-1),
@@ -181,7 +178,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu32" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv32) - gram_matrix(conv32_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv32 / 255.0) - gram_matrix(conv32_gt / 255.0)))
 
     # Seventh Convolution
     w_conv33 = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32, stddev=1e-1),
@@ -202,7 +199,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu33" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv33) - gram_matrix(conv33_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv33 / 255.0) - gram_matrix(conv33_gt / 255.0)))
 
     # Third Maxpool
     pool3 = tf.nn.max_pool(conv33, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -229,7 +226,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu41" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv41) - gram_matrix(conv41_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv41 / 255.0) - gram_matrix(conv41_gt / 255.0)))
 
     # Nineth Convolution
     w_conv42 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -250,7 +247,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu42" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv42) - gram_matrix(conv42_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv42 / 255.0) - gram_matrix(conv42_gt / 255.0)))
 
     # Tenth Convolution
     w_conv43 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -271,7 +268,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu43" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv43) - gram_matrix(conv43_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv43 / 255.0) - gram_matrix(conv43_gt / 255.0)))
 
     # Fourth Maxpool
     pool4 = tf.nn.max_pool(conv43, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -298,7 +295,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu51" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv51) - gram_matrix(conv51_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv51 / 255.0) - gram_matrix(conv51_gt / 255.0)))
 
     # Twelfth Convolution
     w_conv52 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -319,7 +316,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu52" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv52) - gram_matrix(conv52_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv52 / 255.0) - gram_matrix(conv52_gt / 255.0)))
 
     # Thirteenth Convolution
     w_conv53 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -340,7 +337,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "relu53" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(conv53) - gram_matrix(conv53_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(conv53 / 255.0) - gram_matrix(conv53_gt / 255.0)))
 
     # Fifth Maxpool
     pool5 = tf.nn.max_pool(conv53, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -370,7 +367,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "fc1" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(fc1) - gram_matrix(fc1_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(fc1 / 255.0) - gram_matrix(fc1_gt / 255.0)))
 
     # Second FC
     w_fc2 = tf.Variable(tf.truncated_normal([4096, 4096], dtype=tf.float32, stddev=1e-1),
@@ -389,7 +386,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "fc2" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(fc2) - gram_matrix(fc2_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(fc2 / 255.0) - gram_matrix(fc2_gt / 255.0)))
 
     # Third FC
     w_fc3 = tf.Variable(tf.truncated_normal([4096, 1000], dtype=tf.float32, stddev=1e-1),
@@ -406,7 +403,7 @@ def style_loss(config, fake, real, layers):
 
     # Loss
     if "fc3" in layers:
-        loss += tf.reduce_sum(tf.square(gram_matrix(fc3) - gram_matrix(fc3_gt)))
+        loss += tf.reduce_sum(tf.square(gram_matrix(fc3 / 255.0) - gram_matrix(fc3_gt / 255.0)))
 
     # Load Weights
     load_weights(config, parameters)
@@ -442,7 +439,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu11" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv11, conv11_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv11 / 255.0, conv11_gt / 255.0, name=None))
 
     # Second Convolution
     w_conv12 = tf.Variable(tf.truncated_normal([3, 3, 64, 64], dtype=tf.float32, stddev=1e-1),
@@ -463,7 +460,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu12" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv12, conv12_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv12 / 255.0, conv12_gt / 255.0, name=None))
 
     # First Maxpool
     pool1 = tf.nn.max_pool(conv12, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -490,7 +487,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu21" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv21, conv21_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv21 / 255.0, conv21_gt / 255.0, name=None))
 
     # Fourth Convolution
     w_conv22 = tf.Variable(tf.truncated_normal([3, 3, 128, 128], dtype=tf.float32, stddev=1e-1),
@@ -511,7 +508,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu22" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv22, conv22_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv22 / 255.0, conv22_gt / 255.0, name=None))
 
     # Second Maxpool
     pool2 = tf.nn.max_pool(conv22, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -538,7 +535,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu31" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv31, conv31_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv31 / 255.0, conv31_gt / 255.0, name=None))
 
     # Sixth Convolution
     w_conv32 = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32, stddev=1e-1),
@@ -559,7 +556,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu32" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv32, conv32_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv32 / 255.0, conv32_gt / 255.0, name=None))
 
     # Seventh Convolution
     w_conv33 = tf.Variable(tf.truncated_normal([3, 3, 256, 256], dtype=tf.float32, stddev=1e-1),
@@ -580,7 +577,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu33" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv33, conv33_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv33 / 255.0, conv33_gt / 255.0, name=None))
 
     # Third Maxpool
     pool3 = tf.nn.max_pool(conv33, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -607,7 +604,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu41" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv41, conv41_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv41 / 255.0, conv41_gt / 255.0, name=None))
 
     # Nineth Convolution
     w_conv42 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -628,7 +625,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu42" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv42, conv42_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv42 / 255.0, conv42_gt / 255.0, name=None))
 
     # Tenth Convolution
     w_conv43 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -649,7 +646,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu43" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv43, conv43_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv43 / 255.0, conv43_gt / 255.0, name=None))
 
     # Fourth Maxpool
     pool4 = tf.nn.max_pool(conv43, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -676,7 +673,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu51" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv51, conv51_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv51 / 255.0, conv51_gt / 255.0, name=None))
 
     # Twelfth Convolution
     w_conv52 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -697,7 +694,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu52" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv52, conv52_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv52 / 255.0, conv52_gt / 255.0, name=None))
 
     # Thirteenth Convolution
     w_conv53 = tf.Variable(tf.truncated_normal([3, 3, 512, 512], dtype=tf.float32, stddev=1e-1),
@@ -718,7 +715,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "relu53" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(conv53, conv53_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(conv53 / 255.0, conv53_gt / 255.0, name=None))
 
     # Fifth Maxpool
     pool5 = tf.nn.max_pool(conv53, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
@@ -748,7 +745,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "fc1" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(fc1, fc1_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(fc1 / 255.0, fc1_gt / 255.0, name=None))
 
     # Second FC
     w_fc2 = tf.Variable(tf.truncated_normal([4096, 4096], dtype=tf.float32, stddev=1e-1),
@@ -767,7 +764,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "fc2" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(fc2, fc2_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(fc2 / 255.0, fc2_gt / 255.0, name=None))
 
     # Third FC
     w_fc3 = tf.Variable(tf.truncated_normal([4096, 1000], dtype=tf.float32, stddev=1e-1),
@@ -784,7 +781,7 @@ def feature_loss(config, fake, real, layers):
 
     # Loss
     if "fc3" in layers:
-        loss += tf.reduce_mean(tf.squared_difference(fc3, fc3_gt, name=None))
+        loss += tf.reduce_mean(tf.squared_difference(fc3 / 255.0, fc3_gt / 255.0, name=None))
 
     # Load Weights
     load_weights(config, parameters)

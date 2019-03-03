@@ -58,21 +58,13 @@ def guided_filter(x, y, r, eps=1e-8, nhwc=True):
     with tf.control_dependencies(assets):
         x = tf.identity(x)
 
-    # N
     N = box_filter(tf.ones((1, 1, x_shape[2], x_shape[3]), dtype=x.dtype), r)
-
-    # mean_x
     mean_x = box_filter(x, r) / N
-    # mean_y
     mean_y = box_filter(y, r) / N
-    # cov_xy
     cov_xy = box_filter(x * y, r) / N - mean_x * mean_y
-    # var_x
     var_x = box_filter(x * x, r) / N - mean_x * mean_x
 
-    # A
     A = cov_xy / (var_x + eps)
-    # b
     b = mean_y - A * mean_x
 
     mean_A = box_filter(A, r) / N
