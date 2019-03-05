@@ -10,10 +10,10 @@ from base.base_model import BaseModel
 from keras import backend as K
 from keras.activations import sigmoid, relu
 from keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, LeakyReLU, ReLU, Reshape
-from keras.objectives import binary_crossentropy, mean_absolute_error
+from keras.objectives import binary_crossentropy
 
 from layers.guided_filter import guided_filter
-from layers.reconstruction_loss import feature_loss, style_loss
+from layers.reconstruction_loss import style_loss
 
 
 class Unet(BaseModel):
@@ -193,21 +193,34 @@ class Unet(BaseModel):
 
             with K.name_scope("decode8"):
                 d8 = Conv2DTranspose(filters=self.output_shape.as_list()[-1], kernel_size=5, strides=2, padding='same')(d7)
+                d8 = tf.contrib.layers.batch_norm(d8, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+                d8 = ReLU()(d8)
+
+            son = tf.image.grayscale_to_rgb(x)
 
             with K.name_scope("guided1"):
-                son = tf.image.grayscale_to_rgb(x)
-
-                # Guided Convolution
+                # First Guided Convolution
                 c1 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d8)
                 c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 c1 = ReLU()(c1)
 
-                # Guided Filter
+                # First Guided Filter
                 g1 = guided_filter(x=c1, y=son, r=20, eps=1e-4, nhwc=True)
-                g1 = Concatenate()([g1 * d8, d8])
+
+            with K.name_scope("guided2"):
+                # Second Guided Convolution
+                c2 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d8)
+                c2 = tf.contrib.layers.batch_norm(c2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+                c2 = ReLU()(c2)
+
+                # Second Guided Filter
+                g2 = guided_filter(x=c2, y=son, r=20, eps=1e-4, nhwc=True)
+
+            # Guided Concatenation
+            gf = Concatenate()([g2 * d8, g1 + d8, d8])
 
             # Final Convolution
-            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
+            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(gf)
 
             return relu(fn)
 
@@ -221,14 +234,15 @@ class Unet(BaseModel):
         fake_logits, fake = self.build_discriminator(Concatenate()([self.x, self.fn]), reuse=True)
 
         with K.name_scope("loss"):
-            self.real_entropy = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits, labels=tf.ones_like(real)))
-            self.fake_entropy = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.zeros_like(fake)))
+            self.real_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits,
+                                                                                       labels=tf.ones_like(real)))
+            self.fake_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                                       labels=tf.zeros_like(fake)))
             self.disc_entropy = self.real_entropy + self.fake_entropy
 
-            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.ones_like(fake))
-            self.reconstruction_loss = 10e6 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
+            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                              labels=tf.ones_like(fake))
+            self.reconstruction_loss = 1e5 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
             self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss)
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")

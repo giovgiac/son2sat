@@ -51,8 +51,11 @@ class Aracati(object):
         data = imresize(data, [height, width])
         data = data / 255.0
 
+        if np.ndim(data) == 2:
+            data = np.expand_dims(data, axis=2)
+
         if is_sonar:
-            return np.expand_dims(data, axis=2)
+            return data[:, :, :1]
         else:
             return data[:, :, :3]
 
