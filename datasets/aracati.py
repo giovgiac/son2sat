@@ -46,7 +46,7 @@ class Aracati(object):
                   [self.load_data(file, is_sonar=False) for file in self.sat_data[self.idx * batch_size:(self.idx + 1) * batch_size]]
 
     @staticmethod
-    def load_data(path, width=512, height=256, is_sonar=False):
+    def load_data(path, width=256, height=128, is_sonar=False):
         data = imread(path).astype(np.float)
         data = imresize(data, [height, width])
         data = data / 255.0
