@@ -71,7 +71,7 @@ class Trainer(BaseTrainer):
         self.logger.summarize(it, summarizer="train", scope="discriminative", summaries_dict=discriminator_dict)
 
     def train_step(self):
-        batch_x, batch_y = next(self.data.next_batch(self.config.batch_size))
+        batch_x, batch_y = next(self.data.next_batch(self.config.batch_size, is_validation=False))
         feed_dict = {self.model.x: batch_x, self.model.y: batch_y, K.learning_phase(): 1}
 
         _, err, r_err, f_err, d_err, r_loss, d_loss = self.session.run([self.model.train_step,
@@ -126,7 +126,7 @@ class Trainer(BaseTrainer):
         self.model.save(self.session)
 
     def validate_step(self):
-        batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_test=True))
+        batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_validation=True))
         feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
 
         err, r_loss, d_loss, fn, y, x = self.session.run([self.model.cross_entropy,

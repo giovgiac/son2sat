@@ -33,12 +33,12 @@ class Aracati(object):
             self.num_images = len(self.son_data)
             self.num_images_val = len(self.son_data_val)
 
-    def next_batch(self, batch_size, is_test=False):
-        batch_idxs = self.num_images_val // batch_size if is_test else self.num_images // batch_size
+    def next_batch(self, batch_size, is_validation=False):
+        batch_idxs = self.num_images_val // batch_size if is_validation else self.num_images // batch_size
         if self.idx == batch_idxs:
             self.idx = 0
 
-        if is_test:
+        if is_validation:
             yield [self.load_data(file, is_sonar=True) for file in self.son_data_val[self.idx * batch_size:(self.idx + 1) * batch_size]], \
                   [self.load_data(file, is_sonar=False) for file in self.sat_data_val[self.idx * batch_size:(self.idx + 1) * batch_size]]
         else:
@@ -46,13 +46,16 @@ class Aracati(object):
                   [self.load_data(file, is_sonar=False) for file in self.sat_data[self.idx * batch_size:(self.idx + 1) * batch_size]]
 
     @staticmethod
-    def load_data(path, width=512, height=256, is_sonar=False):
+    def load_data(path, width=256, height=128, is_sonar=False):
         data = imread(path).astype(np.float)
         data = imresize(data, [height, width])
         data = data / 255.0
 
+        if np.ndim(data) == 2:
+            data = np.expand_dims(data, axis=2)
+
         if is_sonar:
-            return np.expand_dims(data, axis=2)
+            return data[:, :, :1]
         else:
             return data[:, :, :3]
 

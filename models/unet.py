@@ -9,11 +9,12 @@ import tensorflow as tf
 from base.base_model import BaseModel
 from keras import backend as K
 from keras.activations import sigmoid, relu
-from keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dense, Dropout, LeakyReLU, ReLU, Reshape
-from keras.objectives import binary_crossentropy, mean_absolute_error
+from keras.layers import Concatenate, Conv2D, Dense, Dropout, MaxPool2D, ReLU, Reshape, UpSampling2D
+from keras.objectives import binary_crossentropy
 
+from layers.dilated_convolution import dilated_conv2d
 from layers.guided_filter import guided_filter
-from layers.reconstruction_loss import feature_loss, style_loss
+from layers.reconstruction_loss import style_loss
 
 
 class Unet(BaseModel):
@@ -41,6 +42,7 @@ class Unet(BaseModel):
         self.fn = None
         self.train_step = None
 
+        self.dis_filters = self.config.gen_filters
         self.gen_filters = self.config.gen_filters
         self.input_shape = tf.TensorShape([self.config.image_height,
                                            self.config.image_width,
@@ -57,24 +59,24 @@ class Unet(BaseModel):
         with tf.variable_scope("discriminator", reuse=reuse):
             if not self.disc_layers:
                 # First Layer
-                self.disc_layers['h0_conv'] = Conv2D(filters=self.gen_filters, kernel_size=(5, 5), strides=(2, 2),
+                self.disc_layers['h0_conv'] = Conv2D(filters=self.dis_filters, kernel_size=(5, 5), strides=(2, 2),
                                                      padding='same')
-                self.disc_layers['h0_actv'] = LeakyReLU(alpha=0.2)
+                self.disc_layers['h0_actv'] = ReLU()
 
                 # Second Layer
-                self.disc_layers['h1_conv'] = Conv2D(filters=self.gen_filters * 2, kernel_size=(5, 5), strides=(2, 2),
+                self.disc_layers['h1_conv'] = Conv2D(filters=self.dis_filters * 2, kernel_size=(5, 5), strides=(2, 2),
                                                      padding='same')
-                self.disc_layers['h1_actv'] = LeakyReLU(alpha=0.2)
+                self.disc_layers['h1_actv'] = ReLU()
 
                 # Third Layer
-                self.disc_layers['h2_conv'] = Conv2D(filters=self.gen_filters * 4, kernel_size=(5, 5), strides=(2, 2),
+                self.disc_layers['h2_conv'] = Conv2D(filters=self.dis_filters * 4, kernel_size=(5, 5), strides=(2, 2),
                                                      padding='same')
-                self.disc_layers['h2_actv'] = LeakyReLU(alpha=0.2)
+                self.disc_layers['h2_actv'] = ReLU()
 
                 # Fourth Layer
-                self.disc_layers['h3_conv'] = Conv2D(filters=self.gen_filters * 8, kernel_size=(5, 5), strides=(1, 1),
+                self.disc_layers['h3_conv'] = Conv2D(filters=self.dis_filters * 8, kernel_size=(5, 5), strides=(1, 1),
                                                      padding='same')
-                self.disc_layers['h3_actv'] = LeakyReLU(alpha=0.2)
+                self.disc_layers['h3_actv'] = ReLU()
 
                 # Fifth Layer
                 self.disc_layers['h4_resh'] = Reshape(target_shape=(-1,))
@@ -106,108 +108,104 @@ class Unet(BaseModel):
             return h4, sigmoid(h4)
 
     def build_generator(self, x):
+        son = tf.image.grayscale_to_rgb(x)
         with tf.variable_scope("generator", reuse=tf.AUTO_REUSE):
             with K.name_scope("encode1"):
-                e1 = Conv2D(filters=self.gen_filters, kernel_size=5, strides=2, padding='same')(x)
-                e1 = LeakyReLU(alpha=0.2)(e1)
+                # Dilated Convolution
+                e1 = dilated_conv2d(features=x, filters=self.gen_filters * 2, kernel_size=3, padding='same')
+
+                # Max Pool
+                e1 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e1)
+                e1 = ReLU()(e1)
 
             with K.name_scope("encode2"):
-                e2 = Conv2D(filters=self.gen_filters * 2, kernel_size=5, strides=2, padding='same')(e1)
+                # Dilated Convolution
+                e2 = dilated_conv2d(features=e1, filters=self.gen_filters * 4, kernel_size=3, padding='same')
                 e2 = tf.contrib.layers.batch_norm(e2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e2 = LeakyReLU(alpha=0.2)(e2)
+
+                # Max Pool
+                e2 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e2)
+                e2 = ReLU()(e2)
 
             with K.name_scope("encode3"):
-                e3 = Conv2D(filters=self.gen_filters * 4, kernel_size=5, strides=2, padding='same')(e2)
+                # Dilated Convolution
+                e3 = dilated_conv2d(features=e2, filters=self.gen_filters * 8, kernel_size=3, padding='same')
                 e3 = tf.contrib.layers.batch_norm(e3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e3 = LeakyReLU(alpha=0.2)(e3)
+
+                # Max Pool
+                e3 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e3)
+                e3 = ReLU()(e3)
 
             with K.name_scope("encode4"):
-                e4 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e3)
+                # Dilated Convolution
+                e4 = dilated_conv2d(features=e3, filters=self.gen_filters * 16, kernel_size=3, padding='same')
                 e4 = tf.contrib.layers.batch_norm(e4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e4 = LeakyReLU(alpha=0.2)(e4)
 
-            with K.name_scope("encode5"):
-                e5 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e4)
-                e5 = tf.contrib.layers.batch_norm(e5, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e5 = LeakyReLU(alpha=0.2)(e5)
-
-            with K.name_scope("encode6"):
-                e6 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e5)
-                e6 = tf.contrib.layers.batch_norm(e6, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e6 = LeakyReLU(alpha=0.2)(e6)
-
-            with K.name_scope("encode7"):
-                e7 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e6)
-                e7 = tf.contrib.layers.batch_norm(e7, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e7 = LeakyReLU(alpha=0.2)(e7)
-
-            with K.name_scope("encode8"):
-                e8 = Conv2D(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e7)
-                e8 = tf.contrib.layers.batch_norm(e8, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                e8 = ReLU()(e8)
+                # Max Pool
+                e4 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e4)
+                e4 = ReLU()(e4)
 
             with K.name_scope("decode1"):
-                d1 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(e8)
+                # Up Convolution
+                d1 = UpSampling2D(size=(2, 2), interpolation='nearest')(e4)
+                d1 = Conv2D(filters=self.gen_filters * 8, kernel_size=4, padding='same')(d1)
+
                 d1 = tf.contrib.layers.batch_norm(d1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d1 = Dropout(rate=0.5)(d1)
-                d1 = Concatenate()([d1, e7])
+                d1 = Concatenate()([d1, e3])
                 d1 = ReLU()(d1)
 
             with K.name_scope("decode2"):
-                d2 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d1)
+                # Up Convolution
+                d2 = UpSampling2D(size=(2, 2), interpolation='nearest')(d1)
+                d2 = Conv2D(filters=self.gen_filters * 4, kernel_size=4, padding='same')(d2)
+
                 d2 = tf.contrib.layers.batch_norm(d2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d2 = Dropout(rate=0.5)(d2)
-                d2 = Concatenate()([d2, e6])
+                d2 = Concatenate()([d2, e2])
                 d2 = ReLU()(d2)
 
             with K.name_scope("decode3"):
-                d3 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d2)
+                # Up Convolution
+                d3 = UpSampling2D(size=(2, 2), interpolation='nearest')(d2)
+                d3 = Conv2D(filters=self.gen_filters * 2, kernel_size=4, padding='same')(d3)
+
                 d3 = tf.contrib.layers.batch_norm(d3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d3 = Dropout(rate=0.5)(d3)
-                d3 = Concatenate()([d3, e5])
+                d3 = Concatenate()([d3, e1])
                 d3 = ReLU()(d3)
 
             with K.name_scope("decode4"):
-                d4 = Conv2DTranspose(filters=self.gen_filters * 8, kernel_size=5, strides=2, padding='same')(d3)
+                # Up Convolution
+                d4 = UpSampling2D(size=(2, 2), interpolation='nearest')(d3)
+                d4 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=4, padding='same')(d4)
+
                 d4 = tf.contrib.layers.batch_norm(d4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d4 = Concatenate()([d4, e4])
                 d4 = ReLU()(d4)
 
-            with K.name_scope("decode5"):
-                d5 = Conv2DTranspose(filters=self.gen_filters * 4, kernel_size=5, strides=2, padding='same')(d4)
-                d5 = tf.contrib.layers.batch_norm(d5, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d5 = Concatenate()([d5, e3])
-                d5 = ReLU()(d5)
-
-            with K.name_scope("decode6"):
-                d6 = Conv2DTranspose(filters=self.gen_filters * 2, kernel_size=5, strides=2, padding='same')(d5)
-                d6 = tf.contrib.layers.batch_norm(d6, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d6 = Concatenate()([d6, e2])
-                d6 = ReLU()(d6)
-
-            with K.name_scope("decode7"):
-                d7 = Conv2DTranspose(filters=self.gen_filters, kernel_size=5, strides=2, padding='same')(d6)
-                d7 = tf.contrib.layers.batch_norm(d7, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d7 = Concatenate()([d7, e1])
-                d7 = ReLU()(d7)
-
-            with K.name_scope("decode8"):
-                d8 = Conv2DTranspose(filters=self.output_shape.as_list()[-1], kernel_size=5, strides=2, padding='same')(d7)
-
             with K.name_scope("guided1"):
-                son = tf.image.grayscale_to_rgb(x)
-
-                # Guided Convolution
-                c1 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d8)
+                # First Guided Convolution
+                c1 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d4)
                 c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 c1 = ReLU()(c1)
 
-                # Guided Filter
-                g1 = guided_filter(x=c1, y=son, r=20, eps=1e-4, nhwc=True)
-                g1 = Concatenate()([g1 * d8, d8])
+                # First Guided Filter
+                g1 = guided_filter(x=c1, y=son, r=40, eps=1e-3, nhwc=True)
+
+            with K.name_scope("guided2"):
+                # Second Guided Convolution
+                c2 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d4)
+                c2 = tf.contrib.layers.batch_norm(c2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+                c2 = ReLU()(c2)
+
+                # Second Guided Filter
+                g2 = guided_filter(x=c2, y=son, r=40, eps=1e-3, nhwc=True)
+
+            # Guided Concatenation
+            gf = Concatenate()([g2 * d4, g1 + d4, d4])
 
             # Final Convolution
-            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(g1)
+            fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(gf)
 
             return relu(fn)
 
@@ -221,14 +219,15 @@ class Unet(BaseModel):
         fake_logits, fake = self.build_discriminator(Concatenate()([self.x, self.fn]), reuse=True)
 
         with K.name_scope("loss"):
-            self.real_entropy = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits, labels=tf.ones_like(real)))
-            self.fake_entropy = tf.reduce_mean(
-                tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.zeros_like(fake)))
+            self.real_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits,
+                                                                                       labels=tf.ones_like(real)))
+            self.fake_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                                       labels=tf.zeros_like(fake)))
             self.disc_entropy = self.real_entropy + self.fake_entropy
 
-            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits, labels=tf.ones_like(fake))
-            self.reconstruction_loss = 10e6 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
+            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                              labels=tf.ones_like(fake))
+            self.reconstruction_loss = 1e4 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
             self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss)
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
