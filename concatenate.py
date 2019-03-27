@@ -22,28 +22,24 @@ from matplotlib.pyplot import imread, imsave
 
 import numpy as np
 
-EXECUTION_NAME = "2019-03-24_12:25"
+EXECUTION_NAME = "2019-03-25_22:07"
 WIDTH = 256
 HEIGHT = 128
 
 def main():
     data_son = sorted(glob.glob("./datasets/aracati/test/input/*.png"))
-    data_rea = sorted(glob.glob("./datasets/aracati/test/gt/*.png"))
     data_fak = sorted(glob.glob("./executions/{}/results/*.png".format(EXECUTION_NAME)))
 
-    assert(len(data_son) == len(data_rea) == len(data_fak))
+    assert(len(data_son) == len(data_fak))
     for i in range(len(data_fak)):
         image_son = imread(data_son[i]).astype(np.float)
         image_son = scipy.misc.imresize(image_son, [HEIGHT, WIDTH])
         image_son = np.asarray(np.dstack((image_son, image_son, image_son)), dtype=np.uint8)
 
-        image_rea = imread(data_rea[i]).astype(np.float)
-        image_rea = scipy.misc.imresize(image_rea, [HEIGHT, WIDTH])
-
         image_fak = imread(data_fak[i]).astype(np.float)
         image_fak = scipy.misc.imresize(image_fak, [HEIGHT, WIDTH])
 
-        image_res = np.concatenate((image_son[:,:,:3], image_fak[:,:,:3], image_rea[:,:,:3]), axis=1)
+        image_res = np.concatenate((image_son[:,:,:3], image_fak[:,:,:3]), axis=1)
         imsave("./executions/{}/presentations/test_{:05d}.png".format(EXECUTION_NAME, i), image_res)
         print("CONCATENATING: Finished Image {:05d}".format(i))
 

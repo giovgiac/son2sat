@@ -121,92 +121,88 @@ class Unet(BaseModel):
             with K.name_scope("encode2"):
                 # Dilated Convolution
                 e2 = dilated_conv2d(features=e1, filters=self.gen_filters * 4, kernel_size=3, padding='same')
-                e2 = tf.contrib.layers.batch_norm(e2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
                 # Max Pool
                 e2 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e2)
                 e2 = ReLU()(e2)
+                e2 = tf.contrib.layers.batch_norm(e2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
             with K.name_scope("encode3"):
                 # Dilated Convolution
                 e3 = dilated_conv2d(features=e2, filters=self.gen_filters * 8, kernel_size=3, padding='same')
-                e3 = tf.contrib.layers.batch_norm(e3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
                 # Max Pool
                 e3 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e3)
                 e3 = ReLU()(e3)
+                e3 = tf.contrib.layers.batch_norm(e3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
             with K.name_scope("encode4"):
                 # Dilated Convolution
-                e4 = dilated_conv2d(features=e3, filters=self.gen_filters * 16, kernel_size=3, padding='same')
-                e4 = tf.contrib.layers.batch_norm(e4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+                e4 = dilated_conv2d(features=e3, filters=self.gen_filters * 8, kernel_size=3, padding='same')
 
                 # Max Pool
                 e4 = MaxPool2D(pool_size=(2, 2), strides=(2, 2), padding='same')(e4)
                 e4 = ReLU()(e4)
+                e4 = tf.contrib.layers.batch_norm(e4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
             with K.name_scope("decode1"):
                 # Up Convolution
                 d1 = UpSampling2D(size=(2, 2), interpolation='nearest')(e4)
                 d1 = Conv2D(filters=self.gen_filters * 8, kernel_size=4, padding='same')(d1)
 
-                d1 = tf.contrib.layers.batch_norm(d1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d1 = Dropout(rate=0.5)(d1)
-                d1 = Concatenate()([d1, e3])
+                d1 = Dropout(rate=0.2)(d1)
                 d1 = ReLU()(d1)
+                d1 = tf.contrib.layers.batch_norm(d1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+
+                # Skip Connection
+                d1 = Concatenate()([d1, e3])
 
             with K.name_scope("decode2"):
                 # Up Convolution
                 d2 = UpSampling2D(size=(2, 2), interpolation='nearest')(d1)
                 d2 = Conv2D(filters=self.gen_filters * 4, kernel_size=4, padding='same')(d2)
 
-                d2 = tf.contrib.layers.batch_norm(d2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d2 = Dropout(rate=0.5)(d2)
-                d2 = Concatenate()([d2, e2])
+                d2 = Dropout(rate=0.2)(d2)
                 d2 = ReLU()(d2)
+                d2 = tf.contrib.layers.batch_norm(d2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+
+                # Skip Connection
+                d2 = Concatenate()([d2, e2])
 
             with K.name_scope("decode3"):
                 # Up Convolution
                 d3 = UpSampling2D(size=(2, 2), interpolation='nearest')(d2)
                 d3 = Conv2D(filters=self.gen_filters * 2, kernel_size=4, padding='same')(d3)
 
-                d3 = tf.contrib.layers.batch_norm(d3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                d3 = Dropout(rate=0.5)(d3)
-                d3 = Concatenate()([d3, e1])
+                d3 = Dropout(rate=0.2)(d3)
                 d3 = ReLU()(d3)
+                d3 = tf.contrib.layers.batch_norm(d3, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+
+                # Skip Connection
+                d3 = Concatenate()([d3, e1])
 
             with K.name_scope("decode4"):
                 # Up Convolution
                 d4 = UpSampling2D(size=(2, 2), interpolation='nearest')(d3)
                 d4 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=4, padding='same')(d4)
 
-                d4 = tf.contrib.layers.batch_norm(d4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 d4 = ReLU()(d4)
+                d4 = tf.contrib.layers.batch_norm(d4, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
             with K.name_scope("guided1"):
                 # First Guided Convolution
                 c1 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d4)
-                c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
                 c1 = ReLU()(c1)
+                c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
                 # First Guided Filter
-                g1 = guided_filter(x=c1, y=son, r=40, eps=1e-3, nhwc=True)
-
-            with K.name_scope("guided2"):
-                # Second Guided Convolution
-                c2 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d4)
-                c2 = tf.contrib.layers.batch_norm(c2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
-                c2 = ReLU()(c2)
-
-                # Second Guided Filter
-                g2 = guided_filter(x=c2, y=son, r=40, eps=1e-3, nhwc=True)
+                g1 = guided_filter(x=son, y=c1, r=40, eps=1e-4, nhwc=True)
 
             # Guided Concatenation
-            gf = Concatenate()([g2 * d4, g1 + d4, d4])
+            gf = Concatenate()([g1 * son, d4])
 
             # Final Convolution
             fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(gf)
-
             return relu(fn)
 
     def build_model(self, batch_size):
