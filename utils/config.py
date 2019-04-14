@@ -24,7 +24,7 @@ tf.flags.DEFINE_integer("input_channels", 1, "Number of channels in the input im
 tf.flags.DEFINE_integer("image_height", 128, "Height of the images to run through the network.")
 tf.flags.DEFINE_integer("image_width", 256, "Width of the images to run through the network.")
 tf.flags.DEFINE_integer("max_to_keep", 1, "Maximum number of checkpoints to keep.")
-tf.flags.DEFINE_integer("num_epochs", 100, "Number of epochs to execute the network for.")
+tf.flags.DEFINE_integer("num_epochs", 50, "Number of epochs to execute the network for.")
 tf.flags.DEFINE_integer("output_channels", 3, "Number of channels in the output images.")
 tf.flags.DEFINE_float("learning_rate", 0.0002, "Initial learning rate for the optimizer.")
 

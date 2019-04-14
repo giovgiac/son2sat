@@ -148,7 +148,8 @@ class Unet(BaseModel):
             with K.name_scope("decode1"):
                 # Up Convolution
                 d1 = UpSampling2D(size=(2, 2), interpolation='nearest')(e4)
-                d1 = Conv2D(filters=self.gen_filters * 8, kernel_size=4, padding='same')(d1)
+                #d1 = Conv2D(filters=self.gen_filters * 8, kernel_size=4, padding='same')(d1)
+                d1 = dilated_conv2d(features=d1, filters=self.gen_filters * 8, kernel_size=4, padding='same')
 
                 d1 = Dropout(rate=0.2)(d1)
                 d1 = ReLU()(d1)
@@ -160,7 +161,8 @@ class Unet(BaseModel):
             with K.name_scope("decode2"):
                 # Up Convolution
                 d2 = UpSampling2D(size=(2, 2), interpolation='nearest')(d1)
-                d2 = Conv2D(filters=self.gen_filters * 4, kernel_size=4, padding='same')(d2)
+                #d2 = Conv2D(filters=self.gen_filters * 4, kernel_size=4, padding='same')(d2)
+                d2 = dilated_conv2d(features=d2, filters=self.gen_filters * 4, kernel_size=4, padding='same')
 
                 d2 = Dropout(rate=0.2)(d2)
                 d2 = ReLU()(d2)
@@ -172,7 +174,8 @@ class Unet(BaseModel):
             with K.name_scope("decode3"):
                 # Up Convolution
                 d3 = UpSampling2D(size=(2, 2), interpolation='nearest')(d2)
-                d3 = Conv2D(filters=self.gen_filters * 2, kernel_size=4, padding='same')(d3)
+                #d3 = Conv2D(filters=self.gen_filters * 2, kernel_size=4, padding='same')(d3)
+                d3 = dilated_conv2d(features=d3, filters=self.gen_filters * 2, kernel_size=4, padding='same')
 
                 d3 = Dropout(rate=0.2)(d3)
                 d3 = ReLU()(d3)
@@ -196,10 +199,19 @@ class Unet(BaseModel):
                 c1 = tf.contrib.layers.batch_norm(c1, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
 
                 # First Guided Filter
-                g1 = guided_filter(x=son, y=c1, r=40, eps=1e-4, nhwc=True)
+                g1 = guided_filter(x=son, y=c1, r=60, eps=1e-4, nhwc=True)
+
+            with K.name_scope("guided2"):
+                # Second Guided Convolution
+                c2 = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=3, strides=1, padding='same')(d4)
+                c2 = ReLU()(c2)
+                c2 = tf.contrib.layers.batch_norm(c2, decay=0.9, epsilon=1e-5, updates_collections=None, scale=True)
+
+                # Second Guided Filter
+                g2 = guided_filter(x=son, y=c2, r=60, eps=1e-4, nhwc=True)
 
             # Guided Concatenation
-            gf = Concatenate()([g1 * son, d4])
+            gf = Concatenate()([g2 * d4, g1 + d4, d4])
 
             # Final Convolution
             fn = Conv2D(filters=self.output_shape.as_list()[-1], kernel_size=1, strides=1, padding='same')(gf)
@@ -221,10 +233,11 @@ class Unet(BaseModel):
                                                                                        labels=tf.zeros_like(fake)))
             self.disc_entropy = self.real_entropy + self.fake_entropy
 
-            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
-                                                                              labels=tf.ones_like(fake))
+            self.discriminator_loss = 0.5 * tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                                    labels=tf.ones_like(fake))
+            self.pixel_loss = 200.0 * tf.reduce_mean(tf.abs(self.fn - self.y))
             self.reconstruction_loss = 1e4 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
-            self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss)
+            self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss + self.pixel_loss)
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)

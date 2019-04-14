@@ -39,16 +39,18 @@ class Trainer(BaseTrainer):
         r_err_list = []
         f_err_list = []
         d_err_list = []
+        p_loss_list = []
         r_loss_list = []
         d_loss_list = []
         for _ in loop:
-            err, r_err, f_err, d_err, r_loss, d_loss = self.train_step()
+            err, r_err, f_err, d_err, p_loss, r_loss, d_loss = self.train_step()
 
             # Append Data
             err_list.append(err)
             r_err_list.append(r_err)
             f_err_list.append(f_err)
             d_err_list.append(d_err)
+            p_loss_list.append(p_loss)
             r_loss_list.append(r_loss)
             d_loss_list.append(d_loss)
 
@@ -60,6 +62,7 @@ class Trainer(BaseTrainer):
             "discriminator_loss": np.mean(d_loss_list),
             "loss": np.mean(err_list),
             "reconstruction_loss": np.mean(r_loss_list),
+            "pixel_loss": np.mean(p_loss_list),
         }
         discriminator_dict = {
             "fake_entropy": np.mean(f_err_list),
@@ -74,31 +77,34 @@ class Trainer(BaseTrainer):
         batch_x, batch_y = next(self.data.next_batch(self.config.batch_size, is_validation=False))
         feed_dict = {self.model.x: batch_x, self.model.y: batch_y, K.learning_phase(): 1}
 
-        _, err, r_err, f_err, d_err, r_loss, d_loss = self.session.run([self.model.train_step,
-                                                                        self.model.cross_entropy,
-                                                                        self.model.real_entropy,
-                                                                        self.model.fake_entropy,
-                                                                        self.model.disc_entropy,
-                                                                        self.model.reconstruction_loss,
-                                                                        self.model.discriminator_loss],
-                                                                       feed_dict=feed_dict)
-        return err, r_err, f_err, d_err, r_loss, d_loss
+        _, err, r_err, f_err, d_err, p_loss, r_loss, d_loss = self.session.run([self.model.train_step,
+                                                                                self.model.cross_entropy,
+                                                                                self.model.real_entropy,
+                                                                                self.model.fake_entropy,
+                                                                                self.model.disc_entropy,
+                                                                                self.model.pixel_loss,
+                                                                                self.model.reconstruction_loss,
+                                                                                self.model.discriminator_loss],
+                                                                               feed_dict=feed_dict)
+        return err, r_err, f_err, d_err, p_loss, r_loss, d_loss
 
     def validate_epoch(self):
         loop = tqdm(range(self.data.num_images_val // self.config.batch_size))
         loop.set_description("Validating Epoch {}".format(self.model.epoch.eval(self.session)))
 
         err_list = []
+        p_loss_list = []
         r_loss_list = []
         d_loss_list = []
         fn_list = []
         y_list = []
         x_list = []
         for _ in loop:
-            err, r_loss, d_loss, fn, y, x = self.validate_step()
+            err, p_loss, r_loss, d_loss, fn, y, x = self.validate_step()
 
             # Append Data
             err_list.append(err)
+            p_loss_list.append(p_loss)
             r_loss_list.append(r_loss)
             d_loss_list.append(d_loss)
             fn_list.append(fn)
@@ -114,6 +120,7 @@ class Trainer(BaseTrainer):
             "discriminator_loss": np.mean(d_loss_list),
             "loss": np.mean(err_list),
             "reconstruction_loss": np.mean(r_loss_list),
+            "pixel_loss": np.mean(p_loss_list),
         }
         image_dict = {
             "fake": fn_list[batch],
@@ -129,11 +136,12 @@ class Trainer(BaseTrainer):
         batch_x_val, batch_y_val = next(self.data.next_batch(self.config.batch_size, is_validation=True))
         feed_dict = {self.model.x: batch_x_val, self.model.y: batch_y_val, K.learning_phase(): 0}
 
-        err, r_loss, d_loss, fn, y, x = self.session.run([self.model.cross_entropy,
-                                                          self.model.reconstruction_loss,
-                                                          self.model.discriminator_loss,
-                                                          self.model.fn,
-                                                          self.model.y,
-                                                          self.model.x],
-                                                         feed_dict=feed_dict)
-        return err, r_loss, d_loss, fn, y, x
+        err, p_loss, r_loss, d_loss, fn, y, x = self.session.run([self.model.cross_entropy,
+                                                                  self.model.pixel_loss,
+                                                                  self.model.reconstruction_loss,
+                                                                  self.model.discriminator_loss,
+                                                                  self.model.fn,
+                                                                  self.model.y,
+                                                                  self.model.x],
+                                                                 feed_dict=feed_dict)
+        return err, p_loss, r_loss, d_loss, fn, y, x

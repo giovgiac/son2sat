@@ -22,15 +22,22 @@ from matplotlib.pyplot import imread, imsave
 
 import numpy as np
 
-EXECUTION_NAME = "2019-03-25_22:07"
+EXECUTION_NAME = "2019-04-14_02:33"
 WIDTH = 256
 HEIGHT = 128
+USE_REAL = False
 
 def main():
     data_son = sorted(glob.glob("./datasets/aracati/test/input/*.png"))
     data_fak = sorted(glob.glob("./executions/{}/results/*.png".format(EXECUTION_NAME)))
 
-    assert(len(data_son) == len(data_fak))
+    if USE_REAL:
+        data_rea = sorted(glob.glob("./datasets/aracati/test/gt/*.png"))
+
+    if USE_REAL:
+        assert(len(data_son) == len(data_fak) == len(data_rea))
+    else:
+        assert(len(data_son) == len(data_fak))
     for i in range(len(data_fak)):
         image_son = imread(data_son[i]).astype(np.float)
         image_son = scipy.misc.imresize(image_son, [HEIGHT, WIDTH])
@@ -39,7 +46,15 @@ def main():
         image_fak = imread(data_fak[i]).astype(np.float)
         image_fak = scipy.misc.imresize(image_fak, [HEIGHT, WIDTH])
 
-        image_res = np.concatenate((image_son[:,:,:3], image_fak[:,:,:3]), axis=1)
+        if USE_REAL:
+            image_rea = imread(data_rea[i]).astype(np.float)
+            image_rea = scipy.misc.imresize(image_rea, [HEIGHT, WIDTH])
+
+        if USE_REAL:
+            image_res = np.concatenate((image_son[:,:,:3], image_fak[:,:,:3], image_rea[:,:,:3]), axis=1)
+        else:
+            image_res = np.concatenate((image_son[:,:,:3], image_fak[:,:,:3]), axis=1)
+
         imsave("./executions/{}/presentations/test_{:05d}.png".format(EXECUTION_NAME, i), image_res)
         print("CONCATENATING: Finished Image {:05d}".format(i))
 
