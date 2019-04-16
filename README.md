@@ -4,6 +4,7 @@
 
 Image files for training should be placed in the correct structure
 inside the datasets folder. The structure should be like this:
+
 ```
 datasets
 │   aracati.py    
@@ -37,8 +38,8 @@ datasets
     └───validation
         │
         └─── input
-        │    │   train_00000.png
-        │    │   train_00001.png
+        │    │   valid_00000.png
+        │    │   valid_00001.png
         │    │   ...
         │
         └─── gt
@@ -47,6 +48,15 @@ datasets
              │   ...
 ```
 
+Below is a download link for the ARACATI 2017 dataset used in the papers, if you use it, please cite one of the following (or both):
+* [Conference Paper](https://ieeexplore.ieee.org/abstract/document/8614099)
+* [Journal]()
+
+[Download ARACATI 2017 Dataset](https://drive.google.com/file/d/1R-tcU67vl_jnnhqvbuE3gMJ9LfOREUpm/view?usp=sharing)
+
+If you'd like to use the same VGG weights we did, here's the download link for them:
+
+[Download VGG16 Weights](https://www.cs.toronto.edu/~frossard/vgg16/vgg16_weights.npz)
 
 ## Executing
 
