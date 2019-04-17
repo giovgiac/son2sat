@@ -231,11 +231,11 @@ class Unet(BaseModel):
                                                                                        labels=tf.zeros_like(fake)))
             self.disc_entropy = self.real_entropy + self.fake_entropy
 
-            self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
-                                                                              labels=tf.ones_like(fake))
+            self.discriminator_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
+                                                                                             labels=tf.ones_like(fake)))
             self.pixel_loss = 5e1 * tf.reduce_mean(tf.abs(self.fn - self.y))
             self.reconstruction_loss = 2.5e-7 * style_loss(conv21, conv21_gt)
-            self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.pixel_loss + self.reconstruction_loss)
+            self.cross_entropy = self.discriminator_loss + self.pixel_loss + self.reconstruction_loss
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
