@@ -79,3 +79,11 @@ You can configure execution with the following commands:
 * **--output_channels**: Number of channels in the output images.
 * **--learning_rate**: Initial learning rate for the optimizer.
 
+## Visualizing
+
+After you've executed the script to train the neural network, it will print the tensorboard command you need to use to
+visualize the network as it's training. Example below:
+```bash
+$ tensorboard --logdir='/home/nautec/Documents/Projects/son2sat/executions/2019-04-16_22:08/summary'
+TensorBoard 1.13.1 at http://127.0.0.1:6006 (Press CTRL+C to quit)
+```

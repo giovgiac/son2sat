@@ -10,11 +10,10 @@ from base.base_model import BaseModel
 from keras import backend as K
 from keras.activations import sigmoid, relu
 from keras.layers import Concatenate, Conv2D, Dense, Dropout, MaxPool2D, ReLU, Reshape, UpSampling2D
-from keras.objectives import binary_crossentropy
 
 from layers.dilated_convolution import dilated_conv2d
 from layers.guided_filter import guided_filter
-from layers.reconstruction_loss import style_loss
+from layers.reconstruction_loss import vgg16, style_loss
 
 
 class Unet(BaseModel):
@@ -27,6 +26,7 @@ class Unet(BaseModel):
 
         # Losses
         self.discriminator_loss = None
+        self.pixel_loss = None
         self.reconstruction_loss = None
 
         # Entropies
@@ -222,6 +222,7 @@ class Unet(BaseModel):
         self.fn = self.build_generator(self.x)
         real_logits, real = self.build_discriminator(Concatenate()([self.x, self.y]), reuse=False)
         fake_logits, fake = self.build_discriminator(Concatenate()([self.x, self.fn]), reuse=True)
+        conv21, conv21_gt = vgg16(self.config, self.fn, self.y, layers=["relu21"])
 
         with K.name_scope("loss"):
             self.real_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_logits,
@@ -232,9 +233,9 @@ class Unet(BaseModel):
 
             self.discriminator_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_logits,
                                                                               labels=tf.ones_like(fake))
-            self.pixel_loss = 100.0 * tf.reduce_mean(tf.abs(self.fn - self.y))
-            self.reconstruction_loss = 1e4 * style_loss(self.config, self.fn, self.y, layers=["relu12"])
-            self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.reconstruction_loss + self.pixel_loss)
+            self.pixel_loss = 5e1 * tf.reduce_mean(tf.abs(self.fn - self.y))
+            self.reconstruction_loss = 2.5e-7 * style_loss(conv21, conv21_gt)
+            self.cross_entropy = tf.reduce_mean(self.discriminator_loss + self.pixel_loss + self.reconstruction_loss)
 
             disc_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="discriminator")
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
